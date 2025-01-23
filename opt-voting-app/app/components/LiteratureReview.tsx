@@ -25,9 +25,9 @@ const LiteratureReview = () => {
             One of the most important theoretical concepts behind democratic theory is the idea that “crowds are wise” – that a decision made by a crowd will outperform a decision made by any single member of that crowd. This idea fundamentally motivates the need for decentralized governance in a blockchain context, and there exists a broad class of mathematical models known as Jury Theorems that seek to prove this result.
           </p>
 
-          <h4>Condorcet's Jury Theorem</h4>
+          <h4>Condorcet&apos;s Jury Theorem</h4>
           <p className="section-paragraph">
-            Perhaps the most important of these is Condorcet’s Jury theorem. This theorem states that if we have a binary decision being made by a slate of n voters and each voter has an i.i.d. probability of selecting the correct outcome, p; so long as p {'>'} 0.5, then P(majority selects correct choice) = 1 as n goes to infinity. Fundamentally, this theorem speaks to the wisdom of crowds, showing how even slightly knowledgeable crowds can arrive at the correct decision. It is for this reason that education of group members is highly valuable, and we should be skeptical of blindly following experts.
+            Perhaps the most important of these is Condorcet&apos;s Jury theorem. This theorem states that if we have a binary decision being made by a slate of n voters and each voter has an i.i.d. probability of selecting the correct outcome, p; so long as p {'>'} 0.5, then P(majority selects correct choice) = 1 as n goes to infinity. Fundamentally, this theorem speaks to the wisdom of crowds, showing how even slightly knowledgeable crowds can arrive at the correct decision. It is for this reason that education of group members is highly valuable, and we should be skeptical of blindly following experts.
           </p>
 
           <p className="section-paragraph">

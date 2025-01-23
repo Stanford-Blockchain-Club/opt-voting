@@ -84,54 +84,68 @@ const Initialization: React.FC<{ setVotingResults: (data: any) => void }> = ({ s
 
   // Function to simulate or generate data
   const handleSimulate = async () => {
-    setLoading(true);
+  setLoading(true);
+
+  // Number of simulations you want to run
+  const totalSimulations = 1000;
+
+  // This structure will accumulate votes across all simulations.
+  // For convenience, use an object of objects, keyed by mechanism and project.
+  // aggregatedResults[mechanism][project] = cumulative sum of votes
+  let aggregatedResults: Record<string, Record<string, number>> = {};
+
+  for (let i = 0; i < totalSimulations; i++) {
+    // --- 1. Generate or prepare CSV data for a single simulation ---
 
     let voterData = '';
     let votingPowerData = '';
 
-    const voterHeaders = ['Voter ID', ...Array.from({ length: numProjects }, (_, i) => `Project ${i + 1}`)];
+    const voterHeaders = ['Voter ID', ...Array.from({ length: numProjects }, (_, idx) => `Project ${idx + 1}`)];
     const votingPowerHeaders = ['Voter ID', 'Voting Power'];
 
+    // Handle voter data
     if (voterSource === 'generate') {
-      const randomVoterData = generateRandomData(numVoters, numProjects, voterDistribution); // Generating selected number of voters with selected number of projects
+      // Generate random voter preferences
+      const randomVoterData = generateRandomData(numVoters, numProjects, voterDistribution);
+      // Convert to CSV
       voterData = convertToCSV(randomVoterData, voterHeaders);
-      console.log("Generated Voter Preferences CSV:\n", voterData); // Log the generated voter data
-    }
-
-    if (votingPowerSource === 'generate') {
-      const randomVotingPowerData = generateRandomData(numVoters, 1, powerDistribution); // Generating selected number of voters with 1 voting power column
-      votingPowerData = convertToCSV(randomVotingPowerData, votingPowerHeaders);
-      console.log("Generated Voting Power CSV:\n", votingPowerData); // Log the generated voting power data
-    }
-
-    if (voterSource === 'upload' && !voterFile) {
+    } else if (voterFile) {
+      // If 'upload' option selected, use the uploaded file (only if you want it the same every time)
+      // Or you could re-use the same file content, but typically you'd have just one read of that file
+      // for each iteration if you want exactly repeated data.
+      voterData = await fileToString(voterFile);
+    } else {
       alert('Please upload the voter preferences file.');
       setLoading(false);
       return;
     }
 
-    if (votingPowerSource === 'upload' && !votingPowerFile) {
+    // Handle voting power data
+    if (votingPowerSource === 'generate') {
+      // Generate random voting power
+      const randomVotingPowerData = generateRandomData(numVoters, 1, powerDistribution);
+      // Convert to CSV
+      votingPowerData = convertToCSV(randomVotingPowerData, votingPowerHeaders);
+    } else if (votingPowerFile) {
+      votingPowerData = await fileToString(votingPowerFile);
+    } else {
       alert('Please upload the voting power file.');
       setLoading(false);
       return;
     }
 
+    // --- 2. Create a FormData for a single simulation request ---
     const formData = new FormData();
 
-    if (voterSource === 'upload') {
-      formData.append('voterFile', voterFile!);
-    } else {
-      const blob = new Blob([voterData], { type: 'text/csv' });
-      formData.append('voterFile', blob, 'voter_preferences.csv');
-    }
+    // Convert the generated or read CSV strings into blobs for sending
+    const voterBlob = new Blob([voterData], { type: 'text/csv' });
+    const powerBlob = new Blob([votingPowerData], { type: 'text/csv' });
 
-    if (votingPowerSource === 'upload') {
-      formData.append('votingPowerFile', votingPowerFile!);
-    } else {
-      const blob = new Blob([votingPowerData], { type: 'text/csv' });
-      formData.append('votingPowerFile', blob, 'voting_power.csv');
-    }
+    // Append to formData
+    formData.append('voterFile', voterBlob, 'voter_preferences.csv');
+    formData.append('votingPowerFile', powerBlob, 'voting_power.csv');
 
+    // --- 3. Send request to backend to run a single simulation ---
     try {
       const response = await fetch('/api/simulate', {
         method: 'POST',
@@ -142,53 +156,73 @@ const Initialization: React.FC<{ setVotingResults: (data: any) => void }> = ({ s
         throw new Error('Failed to simulate');
       }
 
+      // Get CSV response for this single simulation
       const blobResponse = await response.blob();
-      const csvText = await blobResponse.text(); // Convert blob to text
+      const csvText = await blobResponse.text();
 
-      // Parse the CSV to update the voting results state
+      // --- 4. Parse CSV and accumulate ---
       Papa.parse(csvText, {
         header: true,
         complete: (results) => {
-          const parsedResults: any = {};
           results.data.forEach((row: any) => {
             const mechanism = row.Mechanism;
             const project = row.Project;
             const votes = parseFloat(row.Votes);
 
-            // Ensure the parsed number is valid, otherwise, log an error for debugging
-            if (isNaN(votes)) {
+            // Initialize nested objects if not present
+            if (!aggregatedResults[mechanism]) {
+              aggregatedResults[mechanism] = {};
+            }
+            if (!aggregatedResults[mechanism][project]) {
+              aggregatedResults[mechanism][project] = 0;
+            }
+
+            // Accumulate the votes
+            if (!isNaN(votes)) {
+              aggregatedResults[mechanism][project] += votes;
+            } else {
               console.error("Invalid vote value detected:", row);
             }
-
-            if (!parsedResults[mechanism]) {
-              parsedResults[mechanism] = {};
-            }
-            parsedResults[mechanism][project] = votes;
           });
-          setVotingResults(parsedResults);
         },
       });
-      // Add a checkbox for CSV download option
-      const handleDownloadToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setDownloadCsv(e.target.checked);
-      };
-
-      if (downloadCsv) {
-        // Automatically trigger the download of the CSV file
-        const url = window.URL.createObjectURL(blobResponse);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'voting_results.csv';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-      }
     } catch (error) {
       console.error('Error in simulation:', error);
+      // You might decide to continue or break out of the loop here
     }
+  }
 
-    setLoading(false);
-  };
+  // --- 5. After the loop, compute average results ---
+
+  let finalResults: Record<string, Record<string, number>> = {};
+
+  for (let mechanism in aggregatedResults) {
+    finalResults[mechanism] = {};
+    for (let project in aggregatedResults[mechanism]) {
+      const sumOfVotes = aggregatedResults[mechanism][project];
+      // average = (sum of votes across all simulations) / number of simulations
+      finalResults[mechanism][project] = sumOfVotes / totalSimulations;
+    }
+  }
+
+  // --- 6. Update state with the final, averaged results ---
+  setVotingResults(finalResults);
+
+  // If you want to download the final CSV, you can convert `finalResults`
+  // into CSV text and trigger a download here
+
+  setLoading(false);
+};
+
+// Utility: if you need to convert File -> string
+async function fileToString(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsText(file);
+  });
+};
 
   return (
     <section id="initialization" className="initialization-section" style={{ padding: '20px 20px' }}>
