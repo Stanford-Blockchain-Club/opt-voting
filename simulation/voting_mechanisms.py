@@ -1,220 +1,237 @@
 """
-Voting mechanism implementations for RPGF simulation framework.
+Voting mechanism implementations for RPGF simulation framework using NumPy/Pandas.
 
 This module contains implementations of various voting mechanisms and their
 corresponding attack scenarios for analyzing voting behavior in Optimism's
 Retroactive Public Goods Funding (RPGF) program.
 """
 
-from typing import Dict, List, Union
-import random
 import numpy as np
+import pandas as pd
 
-# Type aliases
-VotingResults = Dict[int, float]
-VoterData = Dict[str, Union[int, List[float], float]]
+def baseline_voting(voter_data: pd.DataFrame):
+    """Baseline preference-weighted voting (baseline)."""
+    voting_power = voter_data['voting_power'].values
+    preferences = voter_data.drop(columns=['voting_power']).values
+    
+    # Normalize preferences row-wise
+    pref_sums = preferences.sum(axis=1, keepdims=True)
+    normalized_prefs = preferences / pref_sums
+    
+    # Weight by voting power and sum across voters
+    weighted_votes = normalized_prefs * voting_power[:, np.newaxis]
+    
+    votes = pd.DataFrame({
+        'project_id': range(preferences.shape[1]),
+        'votes': weighted_votes.sum(axis=0),
+    })
 
-class VotingMechanisms:
-    """Collection of voting mechanisms and their attack variants."""
+    metadata = {
+        'n_voters': len(voter_data),
+        'n_projects': preferences.shape[1],
+        'total_voting_power': voting_power.sum(),
+        'attack_type': 'none',
+        'mechanism': 'baseline'
+    }
+    return votes, metadata
 
-    # Base Voting Mechanisms
-    @classmethod
-    def max_voting(cls, voters_data: List[VoterData]) -> VotingResults:
-        """Single Selection (Max) Voting Implementation.
+def quadratic_voting(voter_data: pd.DataFrame, 
+                    attack: str = 'none'):
+    """Quadratic voting with optional attack scenarios."""
+    voting_power = voter_data['voting_power'].values
+    preferences = voter_data.drop(columns=['voting_power']).values
+    n_voters, n_projects = preferences.shape
+    
+    if attack == 'voter_collusion':
+        # Randomly select two colluding voters
+        colluding_ids = np.random.choice(voter_data.index, 2, replace=False)
+        colluding_mask = voter_data.index.isin(colluding_ids)
         
-        Each voter allocates all their voting power to their highest preference.
+        # Handle colluding voters
+        votes = np.zeros(n_projects)
         
-        Args:
-            voters_data: List of voter data including preferences and voting power
+        # Colluding voters split votes between top preferences
+        colluding_prefs = preferences[colluding_mask]
+        top_two = np.argsort(colluding_prefs, axis=1)[:, -2:]
+        colluding_power = voting_power[colluding_mask]
+        
+        for prefs, power in zip(top_two, colluding_power):
+            vote_amount = np.sqrt(0.5 * power)
+            votes[prefs] += vote_amount
+        
+        # Normal voting for others
+        normal_prefs = preferences[~colluding_mask]
+        normal_power = voting_power[~colluding_mask]
+        
+        pref_sums = normal_prefs.sum(axis=1, keepdims=True)
+        normal_votes = np.sqrt((normal_prefs / pref_sums) * normal_power[:, np.newaxis])
+        votes += normal_votes.sum(axis=0)
+        
+    elif attack == 'project_collusion':
+        # Select colluding projects
+        colluding_projects = np.random.choice(n_projects, 2, replace=False)
+        
+        votes = np.zeros(n_projects)
+        for voter_prefs, power in zip(preferences, voting_power):
+            top_pref_idx = np.argmax(voter_prefs)
             
-        Returns:
-            Dict mapping project indices to their vote totals
-        """
-        project_votes: Dict[int, float] = {}
-        
-        for voter in voters_data:
-            max_preference = max(voter['preferences'])
-            # In case of ties, select first project with max preference
-            selected_project = voter['preferences'].index(max_preference)
-            project_votes[selected_project] = (
-                project_votes.get(selected_project, 0) + voter['voting_power']
-            )
-        
-        return project_votes
-
-    @classmethod
-    def true_voting(cls, voters_data: List[VoterData]) -> VotingResults:
-        """True Voting Implementation (Baseline).
-        
-        Direct preference-weighted allocation of voting power.
-        
-        Args:
-            voters_data: List of voter data
-            
-        Returns:
-            Dict of voting results
-        """
-        results: VotingResults = {}
-        
-        for voter in voters_data:
-            preference_sum = sum(voter['preferences'])
-            for i, preference in enumerate(voter['preferences']):
-                vote_amount = (preference / preference_sum) * voter['voting_power']
-                results[i] = results.get(i, 0) + vote_amount
-        
-        return results
-
-    # Quadratic Voting Mechanisms
-    @classmethod
-    def quadratic_voting_no_attack(cls, voters_data: List[VoterData]) -> VotingResults:
-        """Standard Quadratic Voting Implementation."""
-        results: VotingResults = {}
-        
-        for voter in voters_data:
-            preference_sum = sum(voter['preferences'])
-            for i, preference in enumerate(voter['preferences']):
-                vote_amount = np.sqrt((preference / preference_sum) * voter['voting_power'])
-                results[i] = results.get(i, 0) + vote_amount
-        
-        return results
-
-    @classmethod
-    def quadratic_voting_voter_collusion(cls, voters_data: List[VoterData]) -> VotingResults:
-        """Quadratic Voting with Voter Collusion Attack."""
-        results: VotingResults = {}
-        colluding_voters = random.sample(voters_data, 2) # randomly select 2 voters to collude
-        
-        for voter in voters_data:
-            if voter in colluding_voters:
-                # Colluding voters coordinate on top two preferences
-                preferences_with_indices = [
-                    (pref, idx) for idx, pref in enumerate(voter['preferences'])
-                ]
-                top_two_indices = [
-                    idx for _, idx in sorted(
-                        preferences_with_indices, 
-                        key=lambda x: x[0], 
-                        reverse=True
-                    )[:2]
-                ]
-                
-                for idx in top_two_indices:
-                    vote_amount = np.sqrt(0.5 * voter['voting_power'])
-                    results[idx] = results.get(idx, 0) + vote_amount
-            else:
-                # Non-colluding voters vote normally
-                preference_sum = sum(voter['preferences'])
-                for i, preference in enumerate(voter['preferences']):
-                    vote_amount = np.sqrt((preference / preference_sum) * voter['voting_power'])
-                    results[i] = results.get(i, 0) + vote_amount
-        
-        return results
-
-    @classmethod
-    def quadratic_voting_project_collusion(cls, voters_data: List[VoterData]) -> VotingResults:
-        """Quadratic Voting with Project Collusion Attack."""
-        results: VotingResults = {}
-        num_projects = len(voters_data[0]['preferences'])
-        colluding_projects = random.sample(range(num_projects), 2) # randomly select 2 projects to collude
-        
-        for voter in voters_data:
-            top_preference_index = voter['preferences'].index(max(voter['preferences']))
-            
-            if top_preference_index in colluding_projects:
+            if top_pref_idx in colluding_projects:
                 # Split votes between colluding projects
-                for idx in colluding_projects:
-                    vote_amount = np.sqrt(0.5 * voter['voting_power'])
-                    results[idx] = results.get(idx, 0) + vote_amount
+                vote_amount = np.sqrt(0.5 * power)
+                votes[colluding_projects] += vote_amount
             else:
-                # Normal voting for non-colluding projects
-                preference_sum = sum(voter['preferences'])
-                for i, preference in enumerate(voter['preferences']):
-                    vote_amount = np.sqrt((preference / preference_sum) * voter['voting_power'])
-                    results[i] = results.get(i, 0) + vote_amount
-        
-        return results
+                # Normal quadratic voting
+                pref_sum = voter_prefs.sum()
+                votes += np.sqrt((voter_prefs / pref_sum) * power)
+    
+    else:  # Standard quadratic voting
+        pref_sums = preferences.sum(axis=1, keepdims=True)
+        votes = np.sqrt((preferences / pref_sums) * voting_power[:, np.newaxis])
+        votes = votes.sum(axis=0)
+    
+    results = pd.DataFrame({
+        'project_id': range(n_projects),
+        'votes': votes,
+    })
+    
+    metadata = {
+        'n_voters': n_voters,
+        'n_projects': n_projects,
+        'total_voting_power': voting_power.sum(),
+        'attack': attack,
+        'mechanism': 'quadratic'
+    }
+    
+    return results, metadata
 
-    # Mean Voting Mechanisms
-    @classmethod
-    def mean_voting_no_attack(cls, voters_data: List[VoterData]) -> VotingResults:
-        """Standard Mean Voting Implementation."""
-        results: VotingResults = {}
-        project_voter_count: VotingResults = {}
-        
-        # Collect votes
-        for voter in voters_data:
-            preference_sum = sum(voter['preferences'])
-            for i, preference in enumerate(voter['preferences']):
-                vote_amount = (preference / preference_sum) * voter['voting_power']
-                results[i] = results.get(i, 0) + vote_amount
-                if preference > 0:
-                    project_voter_count[i] = project_voter_count.get(i, 0) + 1
-        
-        # Normalize by voter count
-        for project in results:
-            if project_voter_count.get(project, 0) > 0:
-                results[project] /= project_voter_count[project]
-        
-        return results
 
-    @classmethod
-    def mean_voting_voter_epsilon(cls, voters_data: List[VoterData]) -> VotingResults:
-        """Mean Voting with Voter Epsilon Attack."""
-        results: VotingResults = {}
-        project_voter_count: VotingResults = {}
-        epsilon_voter = random.sample(voters_data, 1)[0]
+def mean_voting(voter_data: pd.DataFrame,
+                attack: str = 'none'):
+    """Mean voting with optional epsilon attack."""
+    voting_power = voter_data['voting_power'].values
+    preferences = voter_data.drop(columns=['voting_power']).values
+    n_voters, n_projects = preferences.shape
+    epsilon = 0.01 # Epsilon value in attack scenarios
+    
+    if attack == 'voter_epsilon':
+        # Select random attacker
+        attacker_idx = np.random.choice(n_voters)
         
-        for voter in voters_data:
-            if voter == epsilon_voter:
-                # Epsilon attack strategy
-                top_preference_index = voter['preferences'].index(max(voter['preferences']))
-                num_projects = len(voter['preferences'])
-                
-                for i in range(num_projects):
-                    if i == top_preference_index:
-                        results[i] = results.get(i, 0) + voter['voting_power'] - (0.01 * (num_projects - 1))
-                    else:
-                        results[i] = results.get(i, 0) + 0.01
-                project_voter_count[top_preference_index] = project_voter_count.get(top_preference_index, 0) + 1
-            else:
-                # Normal voting for non-attacking voters
-                preference_sum = sum(voter['preferences'])
-                for i, preference in enumerate(voter['preferences']):
-                    vote_amount = (preference / preference_sum) * voter['voting_power']
-                    results[i] = results.get(i, 0) + vote_amount
-                    if preference > 0:
-                        project_voter_count[i] = project_voter_count.get(i, 0) + 1
+        # Calculate votes excluding attacker
+        pref_sums = preferences.sum(axis=1, keepdims=True)
+        normal_votes = (preferences / pref_sums) * voting_power[:, np.newaxis]
         
-        # Normalize results
-        for project in results:
-            if project_voter_count.get(project, 0) > 0:
-                results[project] /= project_voter_count[project]
+        # Epsilon attack strategy
         
-        return results
+        attacker_prefs = preferences[attacker_idx]
+        max_idx = np.argmax(attacker_prefs)
+        
+        attack_votes = np.full(n_projects, epsilon)
+        attack_votes[max_idx] = voting_power[attacker_idx] - (epsilon * (n_projects - 1))
+        
+        # Replace attacker's votes
+        normal_votes[attacker_idx] = attack_votes
+        final_votes = normal_votes.mean(axis=0)
+        
+    elif attack == 'project_epsilon':
+        # Select attacking project
+        attack_project = np.random.choice(n_projects)
+        
+        # Normal voting calculation
+        pref_sums = preferences.sum(axis=1, keepdims=True)
+        votes = (preferences / pref_sums) * voting_power[:, np.newaxis]
+        
+        # For each voter, if they voted for the attacking project,
+        # maximize their vote for it while minimizing others
+        for i in range(n_voters):
+            if preferences[i, attack_project] > 0:
+                attack_votes = np.full(n_projects, epsilon)
+                attack_votes[attack_project] = voting_power[i] - (epsilon * (n_projects - 1))
+                votes[i] = attack_votes
+        
+        final_votes = votes.mean(axis=0)
+        
+    else:  # Standard mean voting
+        pref_sums = preferences.sum(axis=1, keepdims=True)
+        final_votes = ((preferences / pref_sums) * voting_power[:, np.newaxis]).mean(axis=0)
+    
+    votes = pd.DataFrame({
+        'project_id': range(n_projects),
+        'votes': final_votes,
+        'mechanism': 'mean',
+        'attack_type': attack
+    })
+    
+    metadata = {
+        'n_voters': n_voters,
+        'n_projects': n_projects,
+        'total_voting_power': voting_power.sum(),
+        'attack': attack
+    }
+    
+    return votes, metadata
 
-    # Median Voting Mechanisms
-    @classmethod
-    def median_voting_no_attack(cls, voters_data: List[VoterData]) -> VotingResults:
-        """Standard Median Voting Implementation."""
-        results: VotingResults = {}
-        project_votes: Dict[int, List[float]] = {}
+def median_voting(voter_data: pd.DataFrame, attack: str = 'none'):
+    """Median voting with optional attacks."""
+    preferences = np.vstack(voter_data['preferences'].values)
+    voting_power = voter_data['voting_power'].values
+    n_voters, n_projects = preferences.shape
+    epsilon = 0.01
+    
+    if attack == 'voter_epsilon':
+        # Select random attacker
+        attacker_idx = np.random.choice(n_voters)
         
-        # Collect all votes
-        for voter in voters_data:
-            preference_sum = sum(voter['preferences'])
-            for i, preference in enumerate(voter['preferences']):
-                vote_amount = (preference / preference_sum) * voter['voting_power']
-                if i not in project_votes:
-                    project_votes[i] = []
-                project_votes[i].append(vote_amount)
+        # Calculate normalized votes
+        pref_sums = preferences.sum(axis=1, keepdims=True)
+        votes = (preferences / pref_sums) * voting_power[:, np.newaxis]
         
-        # Calculate median for each project
-        for project_index, votes in project_votes.items():
-            votes.sort()
-            mid = len(votes) // 2
-            results[project_index] = (
-                votes[mid] if len(votes) % 2 == 1 
-                else (votes[mid-1] + votes[mid]) / 2
-            )
+        # Epsilon attack strategy
+        attacker_prefs = preferences[attacker_idx]
+        max_idx = np.argmax(attacker_prefs)
         
-        return results
+        attack_votes = np.full(n_projects, epsilon)
+        attack_votes[max_idx] = voting_power[attacker_idx] - (epsilon * (n_projects - 1))
+        
+        votes[attacker_idx] = attack_votes
+        final_votes = np.median(votes, axis=0)
+        
+    elif attack == 'project_epsilon':
+        # Select attacking project
+        attack_project = np.random.choice(n_projects)
+        
+        # Calculate normalized votes
+        pref_sums = preferences.sum(axis=1, keepdims=True)
+        votes = (preferences / pref_sums) * voting_power[:, np.newaxis]
+        
+        # For each voter who preferred the attacking project
+        for i in range(n_voters):
+            if preferences[i, attack_project] > 0:
+                # Create epsilon attack votes array
+                attack_votes = np.full(n_projects, epsilon)
+                # Allocate remaining voting power to attacking project
+                attack_votes[attack_project] = voting_power[i] - (epsilon * (n_projects - 1))
+                # Replace voter's votes with attack votes
+                votes[i] = attack_votes
+        
+        final_votes = np.median(votes, axis=0)
+        
+    else:  # Standard median voting
+        pref_sums = preferences.sum(axis=1, keepdims=True)
+        votes = (preferences / pref_sums) * voting_power[:, np.newaxis]
+        final_votes = np.median(votes, axis=0)
+    
+    votes = pd.DataFrame({
+        'project_id': range(n_projects),
+        'votes': final_votes,
+    })
+    
+    metadata = {
+        'n_voters': n_voters,
+        'n_projects': n_projects,
+        'total_voting_power': voting_power.sum(),
+        'mechanism': 'median',
+        'attack_type': attack
+    }
+    
+    return votes, metadata
