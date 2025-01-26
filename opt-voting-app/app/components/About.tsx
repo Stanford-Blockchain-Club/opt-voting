@@ -5,7 +5,7 @@ const About: React.FC = () => {
     <section id="about" style={{ padding: '20px 20px 0px' }}>
       <h2 className="section-heading">About</h2>
       <p className="section-paragraph">
-        A project by Stanford Blockchain Club's research and governance team to evaluate the robustness of different voting mechanisms in the context of Optimism's RPGF. We develop a simulation framework for three primary voting mechanisms used in previous RetroPGF rounds: Single Selection Maximum (Max Voting), Quadratic Voting, and Mean Voting.
+        A project by Stanford Blockchain Club&apos;s research and governance team to evaluate the robustness of different voting mechanisms in the context of Optimism&apos;s RPGF. We develop a simulation framework for three primary voting mechanisms used in previous RetroPGF rounds: Single Selection Maximum (Max Voting), Quadratic Voting, and Mean Voting.
       </p>
       
       <p className="section-paragraph">
