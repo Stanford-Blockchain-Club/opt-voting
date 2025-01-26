@@ -11,8 +11,8 @@ import pandas as pd
 
 def baseline_voting(voter_data: pd.DataFrame):
     """Baseline preference-weighted voting (baseline)."""
-    voting_power = voter_data['voting_power'].values
-    preferences = voter_data.drop(columns=['voting_power']).values
+    voting_power = voter_data['voting_power'].values.astype(float)
+    preferences = voter_data.drop(columns=['voting_power', 'voter_id']).values.astype(float)
     
     # Normalize preferences row-wise
     pref_sums = preferences.sum(axis=1, keepdims=True)
@@ -38,8 +38,8 @@ def baseline_voting(voter_data: pd.DataFrame):
 def quadratic_voting(voter_data: pd.DataFrame, 
                     attack: str = 'none'):
     """Quadratic voting with optional attack scenarios."""
-    voting_power = voter_data['voting_power'].values
-    preferences = voter_data.drop(columns=['voting_power']).values
+    voting_power = voter_data['voting_power'].values.astype(float)
+    preferences = voter_data.drop(columns=['voting_power', 'voter_id']).values.astype(float)
     n_voters, n_projects = preferences.shape
     
     if attack == 'voter_collusion':
@@ -108,8 +108,8 @@ def quadratic_voting(voter_data: pd.DataFrame,
 def mean_voting(voter_data: pd.DataFrame,
                 attack: str = 'none'):
     """Mean voting with optional epsilon attack."""
-    voting_power = voter_data['voting_power'].values
-    preferences = voter_data.drop(columns=['voting_power']).values
+    voting_power = voter_data['voting_power'].values.astype(float)
+    preferences = voter_data.drop(columns=['voting_power', 'voter_id']).values.astype(float)
     n_voters, n_projects = preferences.shape
     epsilon = 0.01 # Epsilon value in attack scenarios
     
@@ -158,8 +158,6 @@ def mean_voting(voter_data: pd.DataFrame,
     votes = pd.DataFrame({
         'project_id': range(n_projects),
         'votes': final_votes,
-        'mechanism': 'mean',
-        'attack_type': attack
     })
     
     metadata = {
@@ -173,8 +171,8 @@ def mean_voting(voter_data: pd.DataFrame,
 
 def median_voting(voter_data: pd.DataFrame, attack: str = 'none'):
     """Median voting with optional attacks."""
-    preferences = np.vstack(voter_data['preferences'].values)
-    voting_power = voter_data['voting_power'].values
+    voting_power = voter_data['voting_power'].values.astype(float)
+    preferences = voter_data.drop(columns=['voting_power', 'voter_id']).values.astype(float)
     n_voters, n_projects = preferences.shape
     epsilon = 0.01
     
