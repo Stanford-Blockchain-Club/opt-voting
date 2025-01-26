@@ -25,7 +25,7 @@ def generate_voter_preferences(n_voters, n_projects, distribution="pareto"):
 
 def generate_voting_power(n_voters, distribution="constant"):
     # Choose normalization constantfor stability
-    norm = 1
+    norm = 10 ** 2
     if distribution == "constant":
         voting_power = np.ones(n_voters)
     elif distribution == "uniform":
@@ -63,6 +63,6 @@ def save_data(voter_data):
     voter_data.to_csv("data/data_gen.csv", index=False)
 
 if __name__ == "__main__":
-    voter_data = generate_data(n_voters=100, n_projects=10, voting_power=100, d_pref="pareto", d_weight="constant")
+    voter_data = generate_data(n_voters=100, n_projects=10, d_pref="pareto", d_weight="constant")
     print(voter_data.head())
     save_data(voter_data)

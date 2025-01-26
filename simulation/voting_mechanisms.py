@@ -113,11 +113,13 @@ def mean_voting(voter_data: pd.DataFrame,
     n_voters, n_projects = preferences.shape
     epsilon = 0.01 # Epsilon value in attack scenarios
     
-    if attack == 'voter_epsilon':
+    if attack == 'voter_collusion':
         # Select random attacker
-        attacker_idx = np.random.choice(n_voters)
+        attacker_idx = np.random.choice(2)
+
+        print(attacker_idx)
         
-        # Calculate votes excluding attacker
+        # Calculate votes excluding attackers
         pref_sums = preferences.sum(axis=1, keepdims=True)
         normal_votes = (preferences / pref_sums) * voting_power[:, np.newaxis]
         
@@ -133,7 +135,7 @@ def mean_voting(voter_data: pd.DataFrame,
         normal_votes[attacker_idx] = attack_votes
         final_votes = normal_votes.mean(axis=0)
         
-    elif attack == 'project_epsilon':
+    elif attack == 'project_collusion':
         # Select attacking project
         attack_project = np.random.choice(n_projects)
         
@@ -176,7 +178,7 @@ def median_voting(voter_data: pd.DataFrame, attack: str = 'none'):
     n_voters, n_projects = preferences.shape
     epsilon = 0.01
     
-    if attack == 'voter_epsilon':
+    if attack == 'voter_collusion':
         # Select random attacker
         attacker_idx = np.random.choice(n_voters)
         
@@ -194,7 +196,7 @@ def median_voting(voter_data: pd.DataFrame, attack: str = 'none'):
         votes[attacker_idx] = attack_votes
         final_votes = np.median(votes, axis=0)
         
-    elif attack == 'project_epsilon':
+    elif attack == 'project_collusion':
         # Select attacking project
         attack_project = np.random.choice(n_projects)
         
