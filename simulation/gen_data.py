@@ -25,7 +25,7 @@ def generate_voter_preferences(n_voters, n_projects, distribution="pareto"):
 
 def generate_voting_power(n_voters, distribution="constant"):
     # Choose normalization constantfor stability
-    norm = 10 ** 2
+    norm = 1000
     if distribution == "constant":
         voting_power = np.ones(n_voters)
     elif distribution == "uniform":

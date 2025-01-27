@@ -115,16 +115,13 @@ def mean_voting(voter_data: pd.DataFrame,
     
     if attack == 'voter_collusion':
         # Select random attacker
-        attacker_idx = np.random.choice(2)
-
-        print(attacker_idx)
+        attacker_idx = np.random.choice(n_voters)
         
         # Calculate votes excluding attackers
         pref_sums = preferences.sum(axis=1, keepdims=True)
         normal_votes = (preferences / pref_sums) * voting_power[:, np.newaxis]
         
         # Epsilon attack strategy
-        
         attacker_prefs = preferences[attacker_idx]
         max_idx = np.argmax(attacker_prefs)
         
