@@ -15,25 +15,25 @@ def run_simulation(n_times, n_voters, n_projects, d_pref="pareto", d_weight="con
         quad_base, _ = quadratic_voting(voter_data)
         quad_voter_attack, _ = quadratic_voting(voter_data, attack="voter_collusion")
         quad_project_attack, _ = quadratic_voting(voter_data, attack="project_collusion")
-        quad_br = get_pairwise_resilience(baseline, quad_base)
-        quad_va = get_pairwise_resilience(quad_base, quad_voter_attack)
-        quad_pa = get_pairwise_resilience(quad_base, quad_project_attack)
+        quad_br = get_pairwise_score(baseline, quad_base)
+        quad_va = get_pairwise_score(quad_base, quad_voter_attack)
+        quad_pa = get_pairwise_score(quad_base, quad_project_attack)
 
         # Mean Voting
         mean_base, _ = mean_voting(voter_data)
         mean_voter_attack, _ = mean_voting(voter_data, attack="voter_collusion")
         mean_project_attack, _ = mean_voting(voter_data, attack="project_collusion")
-        mean_br = get_pairwise_resilience(baseline, mean_base)
-        mean_va = get_pairwise_resilience(mean_base, mean_voter_attack)
-        mean_pa = get_pairwise_resilience(mean_base, mean_project_attack)
+        mean_br = get_pairwise_score(baseline, mean_base)
+        mean_va = get_pairwise_score(mean_base, mean_voter_attack)
+        mean_pa = get_pairwise_score(mean_base, mean_project_attack)
 
         # Median Voting
         median_base, _ = median_voting(voter_data)
         median_voter_attack, _ = median_voting(voter_data, attack="voter_collusion")
         median_project_attack, _ = median_voting(voter_data, attack="project_collusion")
-        median_br = get_pairwise_resilience(baseline, median_base)
-        median_va = get_pairwise_resilience(median_base, median_voter_attack)
-        median_pa = get_pairwise_resilience(median_base, median_project_attack)
+        median_br = get_pairwise_score(baseline, median_base)
+        median_va = get_pairwise_score(median_base, median_voter_attack)
+        median_pa = get_pairwise_score(median_base, median_project_attack)
 
         # Log Results
         results.append({
@@ -62,9 +62,9 @@ def run_mean(n_times, n_voters, n_projects, d_pref="pareto", d_weight="constant"
         # print(mean_voter_attack)
         # print(mean_project_attack)
         # Calculate resilience scores
-        mean_br = get_pairwise_resilience(baseline, mean_base)
-        mean_va = get_pairwise_resilience(mean_base, mean_voter_attack)
-        mean_pa = get_pairwise_resilience(mean_base, mean_project_attack)
+        mean_br = get_pairwise_score(baseline, mean_base)
+        mean_va = get_pairwise_score(mean_base, mean_voter_attack)
+        mean_pa = get_pairwise_score(mean_base, mean_project_attack)
 
         # Rename and merge
         # baseline.rename(columns={'votes': 'baseline_votes'}, inplace=True)
@@ -80,52 +80,51 @@ def run_mean(n_times, n_voters, n_projects, d_pref="pareto", d_weight="constant"
     return pd.DataFrame(results)
 
 def plot_results(results):
-    # Visualize results using histograms
     # Create a 3x3 subplot grid for each voting mechanism
     fig, axes = plt.subplots(3, 3, figsize=(15, 15))
-    fig.suptitle('Resilience Comparison Across Voting Mechanisms')
+    # fig.suptitle('Vote Manipulation Score Across Voting Mechanisms')
     
     # Plot quadratic voting results (top row)
     results['quad_br'].hist(ax=axes[0,0], bins=20)
-    axes[0,0].set_title('Quadratic Voting\nBaseline Resilience')
-    axes[0,0].set_xlabel('Resilience Score')
+    axes[0,0].set_title(f'Quadratic Voting\nBaseline Score\nMean: {results["quad_br"].mean():.2f}\nStd: {results["quad_br"].std():.2f}')
+    axes[0,0].set_xlabel('Score')
     axes[0,0].set_ylabel('Count')
     
     results['quad_va'].hist(ax=axes[0,1], bins=20)
-    axes[0,1].set_title('Quadratic Voting\nVoter Attack Resilience')
-    axes[0,1].set_xlabel('Resilience Score')
+    axes[0,1].set_title(f'Quadratic Voting\nVoter Attack Score\nMean: {results["quad_va"].mean():.2f}\nStd: {results["quad_va"].std():.2f}')
+    axes[0,1].set_xlabel('Score')
     
     results['quad_pa'].hist(ax=axes[0,2], bins=20)
-    axes[0,2].set_title('Quadratic Voting\nProject Attack Resilience')
-    axes[0,2].set_xlabel('Resilience Score')
+    axes[0,2].set_title(f'Quadratic Voting\nProject Attack Score\nMean: {results["quad_pa"].mean():.2f}\nStd: {results["quad_pa"].std():.2f}')
+    axes[0,2].set_xlabel('Score')
     
     # Plot mean voting results (middle row)
     results['mean_br'].hist(ax=axes[1,0], bins=20)
-    axes[1,0].set_title('Mean Voting\nBaseline Resilience')
-    axes[1,0].set_xlabel('Resilience Score')
+    axes[1,0].set_title(f'Mean Voting\nBaseline Score\nMean: {results["mean_br"].mean():.2f}\nStd: {results["mean_br"].std():.2f}')
+    axes[1,0].set_xlabel('Score')
     axes[1,0].set_ylabel('Count')
     
     results['mean_va'].hist(ax=axes[1,1], bins=20)
-    axes[1,1].set_title('Mean Voting\nVoter Attack Resilience')
-    axes[1,1].set_xlabel('Resilience Score')
+    axes[1,1].set_title(f'Mean Voting\nVoter Attack Score\nMean: {results["mean_va"].mean():.2f}\nStd: {results["mean_va"].std():.2f}')
+    axes[1,1].set_xlabel('Score')
     
     results['mean_pa'].hist(ax=axes[1,2], bins=20)
-    axes[1,2].set_title('Mean Voting\nProject Attack Resilience')
-    axes[1,2].set_xlabel('Resilience Score')
+    axes[1,2].set_title(f'Mean Voting\nProject Attack Score\nMean: {results["mean_pa"].mean():.2f}\nStd: {results["mean_pa"].std():.2f}')
+    axes[1,2].set_xlabel('Score')
     
     # Plot median voting results (bottom row)
     results['median_br'].hist(ax=axes[2,0], bins=20)
-    axes[2,0].set_title('Median Voting\nBaseline Resilience')
-    axes[2,0].set_xlabel('Resilience Score')
+    axes[2,0].set_title(f'Median Voting\nBaseline Score\nMean: {results["median_br"].mean():.2f}\nStd: {results["median_br"].std():.2f}')
+    axes[2,0].set_xlabel('Score')
     axes[2,0].set_ylabel('Count')
     
     results['median_va'].hist(ax=axes[2,1], bins=20)
-    axes[2,1].set_title('Median Voting\nVoter Attack Resilience')
-    axes[2,1].set_xlabel('Resilience Score')
+    axes[2,1].set_title(f'Median Voting\nVoter Attack Score\nMean: {results["median_va"].mean():.2f}\nStd: {results["median_va"].std():.2f}')
+    axes[2,1].set_xlabel('Score')
     
     results['median_pa'].hist(ax=axes[2,2], bins=20)
-    axes[2,2].set_title('Median Voting\nProject Attack Resilience')
-    axes[2,2].set_xlabel('Resilience Score')
+    axes[2,2].set_title(f'Median Voting\nProject Attack Score\nMean: {results["median_pa"].mean():.2f}\nStd: {results["median_pa"].std():.2f}')
+    axes[2,2].set_xlabel('Score')
     
     plt.tight_layout()
     plt.savefig('data/voting_mechanism_comparison.png')
