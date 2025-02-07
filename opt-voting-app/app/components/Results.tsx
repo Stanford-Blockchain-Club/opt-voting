@@ -63,7 +63,6 @@ const Results: React.FC<{ votingResults: VotingResults | null }> = ({ votingResu
 
   const votingMechanisms = [
     'trueVotingResults',
-    'maxVotingResults',
     // Quadratic Voting Group
     'quadraticNoAttackResults',
     'quadraticVoterCollusionResults',
@@ -80,7 +79,6 @@ const Results: React.FC<{ votingResults: VotingResults | null }> = ({ votingResu
 
   // Add mapping for friendly names
   const mechanismNames: { [key: string]: string } = {
-    maxVotingResults: 'Maximum Voting',
     quadraticNoAttackResults: 'Quadratic Voting (Base Case)',
     quadraticVoterCollusionResults: 'Quadratic Voting with Voter Collusion',
     quadraticProjectCollusionResults: 'Quadratic Voting with Project Collusion',
@@ -95,7 +93,6 @@ const Results: React.FC<{ votingResults: VotingResults | null }> = ({ votingResu
 
   // Add descriptions for each mechanism
   const mechanismDescriptions: { [key: string]: string } = {
-    maxVotingResults: 'Single Selection Voting where each voter can only allocate their maximum votes to one project.',
     quadraticNoAttackResults: 'Quadratic voting mechanism in its pure form, where the cost of votes increases quadratically. This helps prevent extreme allocations.',
     quadraticVoterCollusionResults: 'Quadratic voting with voter collusion, where voters coordinate their voting strategy to maximize influence in a quadratic voting system.',
     quadraticProjectCollusionResults: 'Shows how quadratic voting results change when projects collaborate to manipulate vote distribution.',

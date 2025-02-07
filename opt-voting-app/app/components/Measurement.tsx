@@ -80,35 +80,32 @@ const Measurement: React.FC<MeasurementProps> = ({ votingResults }) => {
 
   const calculatePercentageDifference = (noAttackData: { [project: string]: number }, attackData: { [project: string]: number }): number => {
     if (!noAttackData || !attackData) return 0;
+
+    // Convert to percentages
+    const totalNoAttack = Object.values(noAttackData).reduce((a, b) => a + b, 0);
+    const totalAttack = Object.values(attackData).reduce((a, b) => a + b, 0);
   
-    let totalSquaredDifference = 0;
-    let totalSquaredOriginal = 0;
+    if (totalNoAttack === 0 || totalAttack === 0) return 0;
   
-    Object.keys(noAttackData).forEach((project) => {
-      const noAttackVotes = noAttackData[project] || 0;
-      const attackVotes = attackData[project] || 0;
+    // Calculate percentage arrays
+    const noAttackPercentages = Object.values(noAttackData).map(votes => (votes / totalNoAttack) * 100);
+    const attackPercentages = Object.values(attackData).map(votes => (votes / totalAttack) * 100);
   
-      if (noAttackVotes === 0) {
-        // If there are no votes in the no-attack scenario, skip this project
-        return;
-      }
+    // Calculate squared differences
+    const squaredDiffs = noAttackPercentages.map((noAttackPct, idx) => 
+      Math.pow(noAttackPct - attackPercentages[idx], 2)
+    );
   
-      // Convert raw vote counts to percentages
-      const noAttackPercentage = noAttackVotes / Object.values(noAttackData).reduce((a, b) => a + b, 0) * 100;
-      const attackPercentage = attackVotes / Object.values(attackData).reduce((a, b) => a + b, 0) * 100;
+    // Sum of squared differences
+    const squaredDiffSum = squaredDiffs.reduce((a, b) => a + b, 0);
+    
+    // Sum of squared original percentages
+    const squaredOriginalSum = noAttackPercentages.reduce((sum, pct) => sum + Math.pow(pct, 2), 0);
   
-      // Square the difference in percentage and sum it
-      const percentageDifference = Math.abs(noAttackPercentage - attackPercentage);
-      totalSquaredDifference += Math.pow(percentageDifference, 2);
+    if (squaredOriginalSum === 0) return 0;
   
-      // Sum of the squared original vote percentages
-      totalSquaredOriginal += Math.pow(noAttackPercentage, 2);
-    });
-  
-    if (totalSquaredOriginal === 0) return 0; // Avoid division by zero
-  
-    // Final result: (Sum of squared differences) / (Sum of squared original percentages)
-    return totalSquaredDifference / totalSquaredOriginal * 100;
+    // Return PMS (Percentage Mean Square) metric
+    return (squaredDiffSum / squaredOriginalSum) * 100;
   };
 
   const measurementValues = [
@@ -122,39 +119,39 @@ const Measurement: React.FC<MeasurementProps> = ({ votingResults }) => {
     { 
       label: 'Quadratic Voting: Voter Collusion Impact', 
       value: quadraticVoterAttackDifference, 
-      max: 100,
+      max: 10000,
       explanation: 'Measures how much voter coordination changed the results in quadratic voting. Higher percentages indicate greater vulnerability to voter collusion.'
     },
     { 
       label: 'Quadratic Voting: Project Manipulation Impact', 
       value: quadraticProjectAttackDifference, 
-      max: 100,
+      max: 10000,
       explanation: 'Shows how much project-level manipulation affected quadratic voting results. Higher percentages suggest greater susceptibility to project-based attacks.'
     },
     // Mean Voting Section
     { 
       label: 'Mean Voting: Voter Collusion Impact', 
       value: meanVoterAttackDifference, 
-      max: 100,
+      max: 10000,
       explanation: 'Indicates how much voter coordination influenced mean voting results. Higher percentages show greater sensitivity to voter collusion.'
     },
     { 
       label: 'Mean Voting: Project Manipulation Impact', 
       value: meanProjectAttackDifference, 
-      max: 100,
+      max: 10000,
       explanation: 'Demonstrates how project-level manipulation affected mean voting results. Higher percentages indicate greater vulnerability to project-based attacks.'
     },
     // Median Voting Section
     { 
       label: 'Median Voting: Voter Manipulation Impact', 
       value: medianVoterAttackDifference, 
-      max: 100,
+      max: 10000,
       explanation: 'Shows how much voter coordination influenced median voting results. Higher percentages indicate greater sensitivity to voter collusion.'
     },
     { 
       label: 'Median Voting: Project Manipulation Impact', 
       value: medianProjectAttackDifference, 
-      max: 100,
+      max: 10000,
       explanation: 'Indicates how much project-level manipulation affected median voting results. Higher percentages suggest greater susceptibility to project-based attacks.'
     },
   ];

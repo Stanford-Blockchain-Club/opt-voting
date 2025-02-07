@@ -32,8 +32,8 @@ const Header: React.FC = () => {
       <div className={styles.headerRight}>
         <nav>
           <ul>
-            <li><a href="#results">Paper</a></li>
-            <li><a href="#results">RFP Details</a></li>
+            <li><a href="https://blockchain.stanford.edu/files/research/optimism-rpgf-0206.pdf">Paper</a></li>
+            <li><a href="https://github.com/orgs/ethereum-optimism/projects/31/views/1?pane=issue&itemId=61734498">RFP Details</a></li>
 
             {/* <li><a href="#results">Result</a></li>
             <li><a href="#measurement">Measure</a></li>

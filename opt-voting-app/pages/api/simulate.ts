@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import multer from 'multer';
 import fs from 'fs';
-import { parse } from 'csv-parse';
+import { parse } from 'csv-parse/sync'; // Using sync parser for simplicity
 import {
   maxVoting,
   quadraticVotingNoAttack,
@@ -19,16 +19,12 @@ import {
 // Directory for storing uploaded files
 const uploadDir = '/tmp'; // Use tmp for temporary file storage
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
-  },
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: '/tmp',
+    filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
+  }),
 });
-
-const upload = multer({ storage });
 
 export const config = {
   api: {
@@ -36,10 +32,106 @@ export const config = {
   },
 };
 
-const multerMiddleware = upload.fields([
-  { name: 'voterFile', maxCount: 1 },
-  { name: 'votingPowerFile', maxCount: 1 },
-]);
+const parseCSV = (filePath: string) => {
+  const fileContent = fs.readFileSync(filePath, 'utf-8');
+  const records = parse(fileContent, {
+    columns: true,
+    skip_empty_lines: true,
+  });
+  return records;
+};
+
+const processVoterData = (voterRecords: any[], powerRecords: any[]) => {
+  return voterRecords.map((voter: any, index: number) => {
+    const voterId = voter['Voter ID'];
+    const preferences = Object.entries(voter)
+      .filter(([key]) => key.startsWith('Project '))
+      .map(([_, value]) => parseFloat(value as string));
+    const votingPower = parseFloat(powerRecords[index]['Voting Power']);
+
+    return {
+      voterId,
+      preferences,
+      votingPower,
+    };
+  });
+};
+
+const simulateHandler = async (req: NextApiRequest, res: NextApiResponse) => {
+  try {
+    await runMiddleware(req, res, upload.fields([
+      { name: 'voterFile', maxCount: 1 },
+      { name: 'votingPowerFile', maxCount: 1 },
+    ]));
+
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    // let numSimulations = parseInt(req.body.numSimulations) || 1000;
+    // if (numSimulations > 10000) {
+    //   numSimulations = 10000;
+    // }
+    // Handle single simulation
+    let numSimulations = 1;
+
+    if (!files.voterFile?.[0] || !files.votingPowerFile?.[0]) {
+      return res.status(400).json({ error: 'Missing required files' });
+    }
+
+    // Parse CSV files
+    const voterRecords = parseCSV(files.voterFile[0].path);
+    const powerRecords = parseCSV(files.votingPowerFile[0].path);
+
+    // Initialize results accumulator
+    let aggregatedResults: Record<string, Record<string, number>> = {};
+
+    // Run simulations
+    for (let i = 0; i < numSimulations; i++) {
+      const voterData = processVoterData(voterRecords, powerRecords);
+      
+      const simulationResults = {
+        // maxVotingResults: maxVoting(voterData),
+        quadraticNoAttackResults: quadraticVotingNoAttack(voterData),
+        quadraticVoterCollusionResults: quadraticVotingVoterCollusionAttack(voterData),
+        quadraticProjectCollusionResults: quadraticVotingProjectCollusionAttack(voterData),
+        meanNoAttackResults: meanVotingNoAttack(voterData),
+        meanVoterEpsilonResults: meanVotingVoterEpsilonAttack(voterData),
+        meanProjectEpsilonResults: meanVotingProjectEpsilonAttack(voterData),
+        trueVotingResults: trueVoting(voterData),
+        medianNoAttackResults: medianVotingNoAttack(voterData),
+        medianVoterEpsilonResults: medianVotingVoterEpsilonAttack(voterData),
+        medianProjectEpsilonResults: medianVotingProjectEpsilonAttack(voterData),
+      };
+
+      // Accumulate results
+      Object.entries(simulationResults).forEach(([mechanism, results]) => {
+        if (!aggregatedResults[mechanism]) {
+          aggregatedResults[mechanism] = {};
+        }
+        Object.entries(results).forEach(([project, votes]) => {
+          if (!aggregatedResults[mechanism][project]) {
+            aggregatedResults[mechanism][project] = 0;
+          }
+          aggregatedResults[mechanism][project] += votes;
+        });
+      });
+    }
+
+    // Calculate averages
+    Object.keys(aggregatedResults).forEach(mechanism => {
+      Object.keys(aggregatedResults[mechanism]).forEach(project => {
+        aggregatedResults[mechanism][project] /= numSimulations;
+      });
+    });
+
+    // Clean up temporary files
+    fs.unlinkSync(files.voterFile[0].path);
+    fs.unlinkSync(files.votingPowerFile[0].path);
+
+    res.status(200).json(aggregatedResults);
+  } catch (error) {
+    console.error('Error in simulation:', error);
+    res.status(500).json({ error: 'Failed to process simulation' });
+  }
+};
 
 function runMiddleware(req: NextApiRequest, res: NextApiResponse, fn: Function) {
   return new Promise((resolve, reject) => {
@@ -51,126 +143,5 @@ function runMiddleware(req: NextApiRequest, res: NextApiResponse, fn: Function) 
     });
   });
 }
-
-const parseCSV = async (filePath: string): Promise<any[]> => {
-  const fileContent = fs.readFileSync(filePath, 'utf-8');
-  return new Promise((resolve, reject) => {
-    parse(fileContent, { trim: true, skip_records_with_empty_values: true }, (err, records) => {
-      if (err) {
-        reject(err);
-      }
-      // Skip the first row, which contains the titles
-      const dataWithoutHeaders = records.slice(1); // Skips the first row (headers)
-      resolve(dataWithoutHeaders);
-    });
-  });
-};
-
-// Helper to convert results to CSV format
-const generateCSV = (data: any) => {
-  const headers = ['Mechanism', 'Project', 'Votes'];
-  let csv = `${headers.join(',')}\n`;
-
-  Object.keys(data).forEach((mechanism) => {
-    const mechanismResults = data[mechanism];
-    Object.keys(mechanismResults).forEach((project) => {
-      csv += `${mechanism},${project},${mechanismResults[project]}\n`;
-    });
-  });
-
-  return csv;
-};
-
-const simulateHandler = async (req: NextApiRequest, res: NextApiResponse) => {
-  console.log('Simulation started');
-  await runMiddleware(req, res, multerMiddleware);
-
-  const voterFile = req.files?.['voterFile']?.[0];
-  const votingPowerFile = req.files?.['votingPowerFile']?.[0];
-
-  if (!voterFile || !votingPowerFile) {
-    console.error('Files are missing');
-    return res.status(400).json({ error: 'Files are missing' });
-  }
-
-  const voterFilePath = voterFile.path;
-  const votingPowerFilePath = votingPowerFile.path;
-
-  try {
-    const preferenceMatrix = await parseCSV(voterFilePath);
-    const votingPowerMatrix = await parseCSV(votingPowerFilePath);
-
-    const votersData = preferenceMatrix.map((preferences, index) => {
-      const votingPower = votingPowerMatrix[index][1]; // Using the correct column, skipping header
-      return {
-        voterId: index + 1, // Assuming voter ID is based on index
-        preferences: preferences.slice(1).map(Number), // Skip the first column which contains titles
-        votingPower: Number(votingPower), // Ensure votingPower is a number
-      };
-    });
-    
-    // Max Voting Mechanism
-    const maxVotingResults = maxVoting(votersData);
-    
-    // Quadratic Voting - No Attack
-    const quadraticNoAttackResults = quadraticVotingNoAttack(votersData);
-
-    // Mean Voting - No Attack
-    const meanNoAttackResults = meanVotingNoAttack(votersData);
-
-    // Quadratic Voting - Voter Collusion Attack
-    const quadraticVoterCollusionResults = quadraticVotingVoterCollusionAttack(votersData);
-
-    // Quadratic Voting - Project Collusion Attack
-    const quadraticProjectCollusionResults = quadraticVotingProjectCollusionAttack(votersData);
-
-    // Mean Voting - Voter Epsilon Attack
-    const meanVoterEpsilonResults = meanVotingVoterEpsilonAttack(votersData);
-
-    // Mean Voting - Project Epsilon Attack
-    const meanProjectEpsilonResults = meanVotingProjectEpsilonAttack(votersData);
-
-    // True Voting
-    const trueVotingResults = trueVoting(votersData);
-
-    // Median Voting - No Attack
-    const medianNoAttackResults = medianVotingNoAttack(votersData);
-
-    // Median Voting - Voter Epsilon Attack
-    const medianVoterEpsilonResults = medianVotingVoterEpsilonAttack(votersData);
-
-    // Median Voting - Project Epsilon Attack
-    const medianProjectEpsilonResults = medianVotingProjectEpsilonAttack(votersData);
-
-    const votingResults = {
-      maxVotingResults,
-      quadraticNoAttackResults,
-      meanNoAttackResults,
-      quadraticVoterCollusionResults,
-      quadraticProjectCollusionResults,
-      meanVoterEpsilonResults,
-      meanProjectEpsilonResults,
-      trueVotingResults,
-      medianNoAttackResults,
-      medianVoterEpsilonResults,
-      medianProjectEpsilonResults,
-    };
-
-    console.log('Generating CSV for voting results');
-    const csvContent = generateCSV(votingResults);
-
-    // Send the CSV file as response without saving it to disk
-    res.setHeader('Content-Disposition', 'attachment; filename=voting_results.csv');
-    res.setHeader('Content-Type', 'text/csv');
-    res.status(200).send(csvContent);
-  } catch (error) {
-    console.error('Error processing files:', error);
-    res.status(500).json({ error: 'Error processing files' });
-  } finally {
-    // Cleanup: remove uploaded files
-    fs.unlinkSync(voterFilePath);
-    fs.unlinkSync(votingPowerFilePath);
-  }
-};
 
 export default simulateHandler;

@@ -1,8 +1,8 @@
 # Optimism Voting Mechanism Dashboard
 
-A simulation framework for analyzing different voting mechanisms and their vulnerability to various attack vectors in the context of Optimism's Retroactive Public Goods Funding (RPGF).
+A dashboard application for analyzing different voting mechanisms and their vulnerability to various attack vectors in the context of Optimism's Retroactive Public Goods Funding (RPGF).
 
-[View Demo](https://opt-voting.vercel.app/) | [RFP Details](https://github.com/orgs/ethereum-optimism/projects/31/views/1?pane=issue&itemId=61734498)
+[View Demo](https://opt-voting.vercel.app/) | [RFP Details](https://github.com/orgs/ethereum-optimism/projects/31/views/1?pane=issue&itemId=61734498) | [Research Paper](https://blockchain.stanford.edu/files/research/optimism-rpgf-0206.pdf)
 
 Maintainers: Billy Gao and Jay Yu
 
@@ -13,9 +13,9 @@ This project implements a voting simulation system that models different voting 
 ## Features
 
 - Multiple voting algorithm implementations:
-  - Single Selection (Max Voting)
-  - Quadratic Voting (with and without collusion attacks)
-  - Mean Voting (with and without epsilon attacks)
+  - Quadratic Voting
+  - Mean Voting
+  - Median Voting
 - Configurable simulation parameters
 - Support for custom preference matrices via CSV import
 - Automated random preference matrix generation
@@ -43,7 +43,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## Usage
 
-1. Choose a voting mechanism (Single Selection, Quadratic, or Mean)
+1. Choose a voting mechanism (Quadratic, Mean, or Median)
 2. Configure simulation parameters
 3. Either import a custom preference matrix or generate a random one
 4. Run the simulation to visualize outcomes
